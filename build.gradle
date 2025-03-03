@@ -1,0 +1,132 @@
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'maven-publish'
+    id 'net.minecraftforge.gradle' version '[6.0.24,6.2)'
+    id 'com.github.johnrengelman.shadow' version '7.1.2'
+}
+
+version = '7.1.0'
+group = 'ml.northwestwind.forgeautofish'
+
+base {
+    archivesName = "forgeautofish"
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+println('Java: ' + System.getProperty('java.version') + ' JVM: ' + System.getProperty('java.vm.version') + '(' + System.getProperty('java.vendor') + ') Arch: ' + System.getProperty('os.arch'))
+minecraft {
+    mappings channel: 'official', version: mc_version
+    reobf = false
+    copyIdeResources = true
+    runs {
+        configureEach {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+        }
+        client {
+            property 'forge.enabledGameTestNamespaces', "forgeautofish"
+        }
+
+        server {
+            property 'forge.enabledGameTestNamespaces', "forgeautofish"
+            args '--nogui'
+        }
+
+        data {
+            workingDirectory project.file('run-data')
+            args '--mod', "forgeautofish", '--all', '--output', file('src/generated/resources/'), '--existing', file('src/main/resources/')
+        }
+    }
+}
+
+sourceSets.main.resources { srcDir 'src/generated/resources' }
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${mc_version}-${forge_version}"
+    implementation('com.google.code.gson:gson:2.8.9')
+    implementation('org.eclipse.jetty.websocket:websocket-client:9.4.43.v20210629') {
+        exclude group: 'org.eclipse.jetty.websocket', module: 'websocket-common'
+    }
+    implementation('net.sf.jopt-simple:jopt-simple:5.0.4')
+            { exclude group: 'net.sf.jopt-simple' }
+//            { version { strictly '5.0.4' } }
+    implementation('org.eclipse.jetty.websocket:websocket-common:9.4.43.v20210629')
+    implementation('org.eclipse.jetty.websocket:websocket-common:9.4.43.v20210629')
+    implementation('org.eclipse.jetty.websocket:websocket-api:9.4.43.v20210629') // ADD THIS LINE
+    implementation('org.eclipse.jetty.websocket:websocket-servlet:9.4.43.v20210629')
+    implementation('org.eclipse.jetty:jetty-util:9.4.43.v20210629') // Add this line
+    implementation('org.eclipse.jetty:jetty-io:9.4.43.v20210629') // ADD THIS LINE
+    implementation('org.eclipse.jetty:jetty-client:9.4.43.v20210629')
+    implementation('org.eclipse.jetty:jetty-http:9.4.43.v20210629')
+
+}
+
+tasks.named('jar', Jar).configure {
+    manifest {
+        archiveClassifier = build_mc_version
+        attributes([
+            "Specification-Title": "forgeautofish",
+            "Specification-Vendor": "forgeautofish",
+            "Specification-Version": "1", // We are version 1 of ourselves
+            "Implementation-Title": project.name,
+            "Implementation-Version": "${version}",
+            "Implementation-Vendor" :"forgeautofish",
+            "Implementation-Timestamp": new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+        ])
+    }
+}
+
+shadowJar {
+    archiveClassifier.set('') // Tạo ra JAR tiêu chuẩn không có classifier
+    configurations = [project.configurations.runtimeClasspath] // Chỉ bao gồm các phụ thuộc runtime
+    // Hoặc nếu bạn muốn các phụ thuộc trực tiếp mà bạn đã chỉ định
+    dependencies {
+        include(dependency('net.sf.jopt-simple:jopt-simple:5.0.4'))
+        include(dependency('org.eclipse.jetty.websocket:websocket-client:9.4.43.v20210629'))
+        include(dependency('org.eclipse.jetty.websocket:websocket-common:9.4.43.v20210629'))
+        include(dependency('org.eclipse.jetty.websocket:websocket-api:9.4.43.v20210629'))
+        include(dependency('org.eclipse.jetty.websocket:websocket-servlet:9.4.43.v20210629'))
+        include(dependency('org.eclipse.jetty:jetty-io:9.4.43.v20210629'))
+        include(dependency('org.eclipse.jetty:jetty-util:9.4.43.v20210629'))
+        include(dependency('org.eclipse.jetty:jetty-client:9.4.43.v20210629'))
+        include(dependency('org.eclipse.jetty:jetty-http:9.4.43.v20210629'))
+        include(dependency('com.google.code.gson:gson:2.8.9'))
+    }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifact jar
+        }
+    }
+    repositories {
+        maven {
+            url "file://${project.projectDir}/mcmodsrepo"
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
+}
+
+eclipse {
+    // Run everytime eclipse builds the code
+    //autoBuildTasks genEclipseRuns
+    // Run when importing the project
+    synchronizationTasks 'genEclipseRuns'
+}
+
+// Merge the resources and classes into the same directory.
+// This is done because java expects modules to be in a single directory.
+// And if we have it in multiple we have to do performance intensive hacks like having the UnionFileSystem
+// This will eventually be migrated to ForgeGradle so modders don't need to manually do it. But that is later.
+sourceSets.each {
+    def dir = layout.buildDirectory.dir("sourcesSets/$it.name")
+    it.output.resourcesDir = dir
+    it.java.destinationDirectory = dir
+}
